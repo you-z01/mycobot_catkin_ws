@@ -38,7 +38,6 @@ catkin_install_python(PROGRAMS
 
   scripts/realsense_detect_aruco.py
   scripts/publish_aruco_frame.py
-  scripts/follow_and_grab.py
   
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
