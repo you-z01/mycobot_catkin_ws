@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # coding:utf-8
 
+from pymycobot.mycobot import MyCobot
+from pymycobot.mypalletizer import MyPalletizer
+from pymycobot.genre import Coord
+
 import rospy
 import tf
 import threading
@@ -12,6 +16,8 @@ import signal
 import sys
 from geometry_msgs.msg import TransformStamped
 
+
+mc = MyCobot("/dev/ttyTHS1", 1000000)
 # 停止标志
 stop_event = threading.Event()
 latest_transform = None
@@ -36,10 +42,19 @@ def start_server(host, port, shared_data, data_lock):
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((host, port))
     server_socket.listen(1)
+    # server_socket.settimeout(60)  # 设置超时时间为60秒
     # print(f"服务器启动，监听 {host}:{port}")
     rospy.logwarn(f"服务器启动，监听: {host}:{port}")
 
+
     while not stop_event.is_set():
+        # try:
+        #     client_socket, client_address = server_socket.accept()
+        #     # 处理客户端
+        # except socket.timeout:
+        #     print("接收连接超时")
+        # finally:
+        #     server_socket.close()   
         client_socket, client_address = server_socket.accept()
         # print(f"客户端连接: {client_address}")
         rospy.logwarn(f"客户端连接: {client_address}")
@@ -58,6 +73,7 @@ def start_server(host, port, shared_data, data_lock):
                     
                     # 当接收到的数据为1时，查询消息返回信息
                     if pro_data == [1]:
+                        #mc.send_angles([0, 0, 0, 0, 0, 0], 30)
                         global latest_transform
                         if latest_transform:
                             transform_data = [
@@ -76,6 +92,12 @@ def start_server(host, port, shared_data, data_lock):
                             rospy.logwarn(f"获取到的joint1和target的变换数据: {response_message}")
                         else:
                             print("没有收到最新的变换数据")
+                            
+                    elif pro_data == [2]:
+                        mc.send_angles([0, 0, 0, 0, 0, 0], 30)
+                    elif pro_data == [3]:
+                        mc.send_angles([89.92, -59.97, -12.0, 74.3, 5.9, -0.47],10)
+
                     else:
                         with data_lock:
                             shared_data[:] = pro_data
