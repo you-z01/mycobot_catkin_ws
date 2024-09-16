@@ -16,7 +16,6 @@ import signal
 import sys
 from geometry_msgs.msg import TransformStamped
 
-
 mc = MyCobot("/dev/ttyTHS1", 1000000)
 # 停止标志
 stop_event = threading.Event()
@@ -46,7 +45,6 @@ def start_server(host, port, shared_data, data_lock):
     # print(f"服务器启动，监听 {host}:{port}")
     rospy.logwarn(f"服务器启动，监听: {host}:{port}")
 
-
     while not stop_event.is_set():
         # try:
         #     client_socket, client_address = server_socket.accept()
@@ -67,12 +65,13 @@ def start_server(host, port, shared_data, data_lock):
                 message = data.decode('utf-8')
                 # print(f"接收到的数据: {message}")
                 rospy.loginfo(f"接收到的数据: {message}")
+                response_message = ""  # 确保变量初始化
                 
                 pro_data = process_data(message)
+               
                 if pro_data:
-                    
                     # 当接收到的数据为1时，查询消息返回信息
-                    if pro_data == [1]:
+                    if len(pro_data) == 1 and pro_data == [1]:
                         #mc.send_angles([0, 0, 0, 0, 0, 0], 30)
                         global latest_transform
                         if latest_transform:
@@ -90,23 +89,39 @@ def start_server(host, port, shared_data, data_lock):
                             client_socket.sendall(response_message.encode('utf-8'))
                             # print(f"获取到的joint1和target的变换数据：{response_message}")
                             rospy.logwarn(f"获取到的joint1和target的变换数据: {response_message}")
+
                         else:
                             print("没有收到最新的变换数据")
                             
-                    elif pro_data == [2]:
-                        mc.send_angles([0, 0, 0, 0, 0, 0], 30)
-                    elif pro_data == [3]:
-                        mc.send_angles([89.92, -59.97, -12.0, 74.3, 5.9, -0.47],10)
+                    # 说明是带有数据的控制指令
+                    # elif len(pro_data) == 8 and pro_data[0] == 0 and pro_data[7] == 9:
+                    #     angle = pro_data[1:-1]
+                    #     mc.send_angles(angle, 30)
+                    #     client_socket.sendall(str(angle).encode('utf-8'))
+
+                    # 说明是指令数据的控制数据（数据首尾校验）
+                    elif pro_data[0] == 6 and pro_data[-1] == 9:
+                        mess = cmd_control(len(pro_data), pro_data)
+                        client_socket.sendall(str(mess).encode('utf-8'))
+
+                    # elif len(pro_data) == 3 and pro_data[0] == 1 and pro_data[2] == 1:
+                    #     instruct = pro_data[1]
+                    #     mess = cmd_control(3, instruct)  # 传入数据长度3, 数据为instruct
+                    #     client_socket.sendall(str(mess).encode('utf-8'))
+
+                    # elif len(pro_data) == 4 and pro_data[0] == 1 and pro_data[2] == 1:
+                    #     instruct = pro_data[1]
+                    #     mess = cmd_control(5, instruct) # 传入数据长度5, 数据为instruct
+                    #     client_socket.sendall(str(mess).encode('utf-8'))
 
                     else:
                         with data_lock:
                             shared_data[:] = pro_data
-                            #print(f"发送的变换数据：{response_message}")
+                             #print(f"发送的变换数据：{response_message}")
                             rospy.logwarn(f"发送的变换数据：{response_message}")
 
-
                     # print(f"更新后的坐标数据: {shared_data}")
-                    rospy.loginfo(f"更新后的坐标数据: {shared_data}")
+                    rospy.loginfo(f"当前的坐标数据: {shared_data}")
 
         except Exception as e:
             print(f"发生错误: {e}")
@@ -145,6 +160,52 @@ def signal_handler(sig, frame):
     print('Received interrupt signal')
     stop_event.set()  # 设置标志通知线程退出
     sys.exit(0)  # 退出主程序
+
+
+def cmd_control(length, list_data):
+    #data = list_data[1:-1]  # 取出数据 [6,3,9] 则data为[3]
+    if length == 3:
+        # [6,2,9] 前后为校验位
+        if list_data[1] == 1:
+            s = "机械臂关电"
+            mc.power_off()  # 机械臂关电
+            return s
+        elif list_data[1] == 2:
+            s = "机械臂上电"
+            mc.power_on()   # 机械臂上电
+            return s
+        elif list_data[1] == 3:
+            s = "获取到机械臂位姿:"
+            coor = mc.get_coords()
+            s = s + str(coor)
+            return s
+        elif list_data[1] == 4:
+            s = "获取到机械臂角度:"
+            ang = mc.get_angles()
+            s = s + str(ang)
+            return s
+        else:
+            return "无效命令!"
+    elif length == 4:
+        # [6,55,15,9]
+        s = "夹抓到达位置和速度:"
+        mc.set_gripper_value(list_data[0], list_data[1], 1)
+        s = s + str(list_data[0]) + "and" + str(list_data[1])
+        return s  
+    elif length == 9:
+        # [6,30,0,0,0,0,0,0,9]  速度30,角度[0,0,0,0,0,0]
+        speed = int(list_data[1])
+        angle = list_data[2:8]
+        rospy.loginfo(f"speed{speed}")
+        rospy.loginfo(f"angle{angle}")
+        mc.send_angles(angle, speed)
+    else:
+        s = "无效数据长度!"
+        return s
+
+
+
+       
 
 
 if __name__ == "__main__":
