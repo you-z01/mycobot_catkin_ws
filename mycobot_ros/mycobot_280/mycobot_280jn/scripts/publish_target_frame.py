@@ -46,15 +46,8 @@ def start_server(host, port, shared_data, data_lock):
     rospy.logwarn(f"服务器启动，监听: {host}:{port}")
 
     while not stop_event.is_set():
-        # try:
-        #     client_socket, client_address = server_socket.accept()
-        #     # 处理客户端
-        # except socket.timeout:
-        #     print("接收连接超时")
-        # finally:
-        #     server_socket.close()   
+  
         client_socket, client_address = server_socket.accept()
-        # print(f"客户端连接: {client_address}")
         rospy.logwarn(f"客户端连接: {client_address}")
 
         try:
@@ -93,26 +86,10 @@ def start_server(host, port, shared_data, data_lock):
                         else:
                             print("没有收到最新的变换数据")
                             
-                    # 说明是带有数据的控制指令
-                    # elif len(pro_data) == 8 and pro_data[0] == 0 and pro_data[7] == 9:
-                    #     angle = pro_data[1:-1]
-                    #     mc.send_angles(angle, 30)
-                    #     client_socket.sendall(str(angle).encode('utf-8'))
-
                     # 说明是指令数据的控制数据（数据首尾校验）
                     elif pro_data[0] == 6 and pro_data[-1] == 9:
                         mess = cmd_control(len(pro_data), pro_data)
                         client_socket.sendall(str(mess).encode('utf-8'))
-
-                    # elif len(pro_data) == 3 and pro_data[0] == 1 and pro_data[2] == 1:
-                    #     instruct = pro_data[1]
-                    #     mess = cmd_control(3, instruct)  # 传入数据长度3, 数据为instruct
-                    #     client_socket.sendall(str(mess).encode('utf-8'))
-
-                    # elif len(pro_data) == 4 and pro_data[0] == 1 and pro_data[2] == 1:
-                    #     instruct = pro_data[1]
-                    #     mess = cmd_control(5, instruct) # 传入数据长度5, 数据为instruct
-                    #     client_socket.sendall(str(mess).encode('utf-8'))
 
                     else:
                         with data_lock:
@@ -183,6 +160,14 @@ def cmd_control(length, list_data):
             s = "获取到机械臂角度:"
             ang = mc.get_angles()
             s = s + str(ang)
+            return s
+        elif list_data[1] == 5:
+            s = "关夹具:"
+            mc.set_gripper_value(55, 20,1)
+            return s
+        elif list_data[1] == 6:
+            s = "开夹具:"
+            mc.set_gripper_value(100, 20,1)
             return s
         else:
             return "无效命令!"
